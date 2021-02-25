@@ -1,26 +1,28 @@
 <!DOCTYPE html>
 <html>
   <head>
-    <meta charset="utf-8">
+    <meta charset='utf-8'>
     <title>Focus-related events (including legacy events) should fire in the correct order</title>
-    <link rel="author" title="Chris Rebert" href="http://chrisrebert.com">
-    <link rel="help" href="https://w3c.github.io/uievents/#legacy-focusevent-event-order">
-    <meta name="flags" content="interact">
-    <script src="/resources/testharness.js"></script>
-    <script src="/resources/testharnessreport.js"></script>
+    <link rel='author' title='Chris Rebert' href='http://chrisrebert.com'>
+    <link rel='help' href='https://w3c.github.io/uievents/#legacy-focusevent-event-order'>
+    <script src='/resources/testharness.js'></script>
+    <script src='/resources/testharnessreport.js'></script>
+    <script src='/resources/testdriver.js'></script>
+    <script src='/resources/testdriver-actions.js'></script>
+    <script src='/resources/testdriver-vendor.js'></script>
   </head>
   <body>
     <ol>
       <li>Click into the first text input.</li>
       <li>Click into the second text input.</li>
-      <li>Click the "Done" button.</li>
+      <li>Click the 'Done' button.</li>
     </ol>
 
-    <input type="text" id="a" value="First">
+    <input type='text' id='a' value='First'>
     <br>
-    <input type="text" id="b" value="Second">
+    <input type='text' id='b' value='Second'>
     <br>
-    <button type="button" id="done">Done</button>
+    <button type='button' id='done'>Done</button>
 
     <script>
 setup({explicit_timeout: true});
@@ -45,9 +47,10 @@ var relevantEvents = [
   'DOMFocusIn',
   'DOMFocusOut'
 ];
-window.onload = function () {
+window.onload = async function () {
   var a = document.getElementById('a');
   var b = document.getElementById('b');
+  var button = document.getElementById('done');
   var inputs = [a, b];
 
   b.addEventListener('blur', finish, false);
@@ -61,23 +64,35 @@ window.onload = function () {
   }
 
   async_test(function(t) {
-    document.getElementById('done').addEventListener('click', function () {
+    button.addEventListener('click', function () {
       finish();
       t.step(function () {
         assert_array_equals(
           events,
-          ['focusin', 'focus', 'DOMFocusIn', 'focusout', 'focusin', 'blur', 'DOMFocusOut', 'focus', 'DOMFocusIn'],
-          'Focus-related events should fire in this order: focusin, focus, DOMFocusIn, focusout, focusin, blur, DOMFocusOut, focus, DOMFocusIn'
+          ['focus', 'focusin', 'DOMFocusIn', 'blur', 'focusout', 'DOMFocusOut', 'focus', 'focusin', 'DOMFocusIn'],
+          'Focus-related events should fire in this order: focus, focusin, DOMFocusIn, blur, focusout, DOMFocusOut, focus, focusin, DOMFocusIn'
         );
         assert_array_equals(
           targets,
-          [      'a',     'a',          'a',        'a',       'b',    'a',           'a',     'b',          'b'],
+          [      'a',     'a',          'a',        'a',       'a',    'a',           'b',     'b',          'b'],
           'Focus-related events should fire at the correct targets'
         );
         t.done();
       });
     }, false);
   }, 'Focus-related events should fire in the correct order');
+
+  await new test_driver.Actions()
+    .pointerMove(0, 0, {origin: a})
+    .pointerDown()
+    .pointerUp()
+    .pointerMove(0, 0, {origin: b})
+    .pointerDown()
+    .pointerUp()
+    .pointerMove(0, 0, {origin: button})
+    .pointerDown()
+    .pointerUp()
+    .send();
 };
     </script>
   </body>

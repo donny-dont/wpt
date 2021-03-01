@@ -14,7 +14,7 @@ def main(request, response):
              (b'Content-Type', b'application/javascript')]
   body = b'/* This is a service worker script */\n'
 
-  if b'import' in request.GET:
+  if b'import' in request.GET and (request.option.get(b'type') != 'module'):
     body += b"importScripts('%s');" % request.GET[b'import']
 
   return 200, headers, body

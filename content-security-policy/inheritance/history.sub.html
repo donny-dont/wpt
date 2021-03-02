@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+
+<meta http-equiv="Content-Security-Policy" content="img-src 'none'">
+
+<script>
+  let message_from = (w) => {
+    return new Promise(resolve => {
+      let listener = msg => {
+        window.removeEventListener('message', listener);
+        if (msg.source != w)
+          return;
+        resolve(msg.data);
+      };
+      window.addEventListener('message', listener);
+    });
+  };
+
+  let wait = (milliseconds) => {
+    return new Promise(resolve => {
+      window.setTimeout(resolve, milliseconds);
+    });
+  };
+
+  let div_in_popup = (popup) => {
+    let script = popup.document.createElement('script');
+    script.innerText = `function messageBack(msg) {
+       opener.postMessage(msg ,"*");
+    }`
+    popup.document.head.appendChild(script);
+    let div = popup.document.createElement('div');
+    div.innerHTML = `<img src="` + window.origin + `/content-security-policy/support/fail.png" onload="messageBack('img loaded');" onerror="messageBack('img blocked');">`;
+    return div;
+  };
+
+  let testCases = [
+    {
+      other_origin: window.origin,
+      name: "Document is navigated back from history same-origin.",
+    },
+    {
+      other_origin: "http://{{hosts[alt][]}}:{{ports[http][0]}}",
+      name: "Document is navigated back from history cross-origin.",
+    },
+  ];
+
+  testCases.forEach(testCase => {
+    promise_test(async t => {
+      // Create a popup.
+      let popup = window.open();
+
+      // Perform a real navigation in the popup. This is needed because the
+      // initial empty document is not stored in history (so there is no way of
+      // navigating back to it and test history inheritance).
+      let loaded_1 = message_from(popup);
+      popup.location = testCase.other_origin + "/content-security-policy/inheritance/support/postmessage-opener.html";
+      assert_equals(await loaded_1, "ready",
+                    "Could not open and navigate popup.");
+
+      // Navigate to "about:blank". We need to wait for the navigation to
+      // succeed.
+      popup.location = "about:blank";
+      await wait(1000);
+
+      // Check that the "about:blank" document inherits CSP from the initiator.
+      let message = message_from(popup);
+      popup.document.body.appendChild(div_in_popup(popup));
+      assert_equals(await message, "img blocked",
+                    "Image should be blocked by CSP inherited from navigation initiator.");
+
+      let loaded_2 = message_from(popup);
+      // Navigate to another page, which will navigate back.
+      popup.location = testCase.other_origin + "/content-security-policy/inheritance/support/message-opener-and-navigate-back.html";
+      assert_equals(await loaded_2, "ready",
+                    "Could not navigate popup.");
+
+      // We need to wait for the history navigation to be performed.
+      await wait(1000);
+
+      // Check that the "about:blank" document reloaded from history has the
+      // original CSPs.
+      let message_2 = message_from(popup);
+      popup.document.body.appendChild(div_in_popup(popup));
+      assert_equals(await message_2, "img blocked",
+                    "Image should be blocked by CSP reloaded from history.");
+    }, "History navigateion: " + testCase.name);
+  });
+</script>

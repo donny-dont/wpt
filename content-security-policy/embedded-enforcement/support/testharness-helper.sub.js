@@ -142,12 +142,20 @@ function assert_iframe_with_csp(t, url, csp, shouldBlock, urlId, blockedURI) {
       t.done();
     }));
   } else {
-    // Assert iframe loads.  Wait for both the load event and the postMessage.
+    // Assert iframe loads.  Wait for the load event, the postMessage from the
+    // script and the img load event.
+    let postMessage_received = false;
+    let img_loaded = false;
     window.addEventListener('message', t.step_func(e => {
       if (e.source != i.contentWindow)
         return;
-      assert_true(loaded[urlId]);
-      if (i.onloadReceived)
+      if (e.data.loaded) {
+        assert_true(loaded[urlId]);
+        postMessage_received = true;
+      } else if (e.data === "img.loaded")
+        img_loaded = true;
+
+      if (i.onloadReceived && postMessage_received && img_loaded)
         t.done();
     }));
     i.onload = t.step_func(function () {

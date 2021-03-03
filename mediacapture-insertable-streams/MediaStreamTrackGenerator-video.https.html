@@ -8,6 +8,18 @@
 <body>
 <script>
 
+function makeVideoFrame(timestamp) {
+      const height = 10;
+      const width = 10;
+      let canvas = new OffscreenCanvas(width, height);
+
+      let ctx = canvas.getContext('2d');
+      ctx.fillStyle = 'rgba(50, 100, 150, 255)';
+      ctx.fillRect(0, 0, width, height);
+
+      return new VideoFrame(canvas.transferToImageBitmap(), { timestamp });
+    }
+
 async function getVideoFrame() {
   const stream = await navigator.mediaDevices.getUserMedia({video: true});
   const input_track = stream.getTracks()[0];
@@ -42,6 +54,52 @@ promise_test(async t => {
   return readerPromise;
 }, 'MediaStreamTrackGenerator forwards frames to sink');
 
-</script>
+
+promise_test(async t => {
+  let generator = new MediaStreamTrackGenerator("video");
+
+  let writer = generator.writable.getWriter();
+  let frame = makeVideoFrame(1);
+  await writer.write(frame);
+
+  assert_equals(generator.kind, "video");
+  assert_equals(generator.readyState, "live");
+}, "Tests that creating a Video MediaStreamTrackGenerator works as expected");
+
+    promise_test(async t => {
+      let generator = new MediaStreamTrackGenerator("video");
+
+      let writer = generator.writable.getWriter();
+      let frame = makeVideoFrame(1);
+      await writer.write(frame);
+
+      assert_throws_dom("InvalidStateError", () => frame.clone(), "VideoFrame wasn't destroyed on write.");
+    }, "Tests that VideoFrames are destroyed on write.");
+
+    promise_test(async t => {
+      const capturedStream = await navigator.mediaDevices.getUserMedia({ video: true });
+      assert_equals(capturedStream.getVideoTracks().length, 1);
+      let upstreamTrack = capturedStream.getVideoTracks()[0];
+
+      // Note: needs the new constructor signature, currently not implemented.
+      let generator = new MediaStreamTrackGenerator({ signalTarget: upstreamTrack });
+
+      let writer = generator.writable.getWriter();
+      let frame = makeVideoFrame(1);
+      await writer.write(frame);
+
+      assert_equals(generator.kind, "video");
+      assert_equals(generator.readyState, "live");
+    }, "Tests that creating a Video MediaStreamTrackGenerator with a signal target works as expected");
+
+
+    promise_test(async t => {
+      let generator = new MediaStreamTrackGenerator("audio");
+
+      let writer = generator.writable.getWriter();
+      let frame = makeVideoFrame(1);
+      assert_throws_js(TypeError, writer.write(frame));
+    }, "Mismatched frame and generator kind throws on write.");
+  </script>
 </body>
 </html>
